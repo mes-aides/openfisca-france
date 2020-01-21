@@ -540,7 +540,7 @@ class al_revenu_assimile_salaire(Variable):
 class al_abattement_forfaitaire_pour_assistants_et_journalistes(Variable):
     value_type = float
     entity = Individu
-    label = "Salaire imposable apres l'application de l'abattement forfaitaire pour les journaliste et les assistants maternels et familials."
+    label = "L'application de l'abattement forfaitaire pour les journaliste et les assistants maternels et familials."
     definition_period = MONTH
 
     def formula_2019_01(individu, period, parameters):
@@ -550,12 +550,11 @@ class al_abattement_forfaitaire_pour_assistants_et_journalistes(Variable):
         salaire_imposable = individu('salaire_imposable', period)
         abat = parameters(period).prestations.al_assistant_journaliste.abattement.montant
 
-        salaire_imposable_apres_abattement = select([ass_maternel, ass_familial, journaliste],
-                    [salaire_imposable - abat.assistant_maternel, salaire_imposable - abat.assistant_familial,
-                     salaire_imposable - abat.journaliste],
-                    default=salaire_imposable)
+        montant_abattement = select([ass_maternel, ass_familial, journaliste],
+                    [abat.assistant_maternel, abat.assistant_familial, abat.journaliste],
+                    default=0)
 
-        return max_(0, salaire_imposable_apres_abattement)
+        return max_(0, salaire_imposable - montant_abattement)
 
 
 class aide_logement_condition_neutralisation_chomage(Variable):
@@ -769,7 +768,13 @@ class aide_logement_base_ressources_defaut(Variable):
             famille.demandeur.foyer_fiscal('aide_logement_base_revenus_fiscaux', period.n_2) * demandeur_declarant_principal
             + famille.conjoint.foyer_fiscal('aide_logement_base_revenus_fiscaux', period.n_2) * conjoint_declarant_principal
             )
-
+        abat_spe = (
+                famille.demandeur.foyer_fiscal('abat_spe_prestations_familiales', period.n_2)
+                * demandeur_declarant_principal
+                + famille.conjoint.foyer_fiscal('abat_spe_prestations_familiales', period.n_2)
+                * conjoint_declarant_principal
+        )
+        base_ressources_parents = max_(0, base_ressources_parents - abat_spe)
         ressources = (
             base_ressources_parents
             + base_ressources_enfants
@@ -822,14 +827,14 @@ class aide_logement_base_revenus_fiscaux(Variable):
         plus_values_prelevement_forfaitaire_unique_ir = foyer_fiscal('plus_values_prelevement_forfaitaire_unique_ir',
                                                                      period)
 
-        abat_spe = foyer_fiscal('abat_spe', period)
-        caseP = foyer_fiscal('caseP', period)
-        caseF = foyer_fiscal('caseF', period)
-        invV, invC = caseP, caseF
-        naissanceP = foyer_fiscal.declarant_principal('date_naissance', period)
-        naissanceC = foyer_fiscal.conjoint('date_naissance', period)
-        dateLimite = datetime64('1931-01-01')
-        apply_abat_spe = (abat_spe > 0) * (invV + invC + (naissanceP < dateLimite) + (naissanceC < dateLimite))
+        # abat_spe = foyer_fiscal('abat_spe', period)
+        # caseP = foyer_fiscal('caseP', period)
+        # caseF = foyer_fiscal('caseF', period)
+        # invV, invC = caseP, caseF
+        # naissanceP = foyer_fiscal.declarant_principal('date_naissance', period)
+        # naissanceC = foyer_fiscal.conjoint('date_naissance', period)
+        # dateLimite = datetime64('1931-01-01')
+        # apply_abat_spe = (abat_spe > 0) * (invV + invC + (naissanceP < dateLimite) + (naissanceC < dateLimite))
 
         return (
             + rente_viagere_titre_onereux_net
@@ -839,7 +844,7 @@ class aide_logement_base_revenus_fiscaux(Variable):
             + revenus_capitaux_prelevement_forfaitaire_unique_ir
             + rev_cat_pv
             + plus_values_prelevement_forfaitaire_unique_ir
-            - abat_spe * apply_abat_spe
+            # - abat_spe * apply_abat_spe
             - f7ga
             - f7gb
             - f7gc
@@ -863,14 +868,14 @@ class aide_logement_base_revenus_fiscaux(Variable):
         # Apparait à partir de 2018
         plus_values_prelevement_forfaitaire_unique_ir = foyer_fiscal('plus_values_prelevement_forfaitaire_unique_ir', period)
 
-        abat_spe = foyer_fiscal('abat_spe', period)
-        caseP = foyer_fiscal('caseP', period)
-        caseF = foyer_fiscal('caseF', period)
-        invV, invC = caseP, caseF
-        naissanceP = foyer_fiscal.declarant_principal('date_naissance', period)
-        naissanceC = foyer_fiscal.conjoint('date_naissance', period)
-        dateLimite = datetime64('1931-01-01')
-        apply_abat_spe = (abat_spe > 0) * (invV + invC + (naissanceP < dateLimite) + (naissanceC < dateLimite))
+        # abat_spe = foyer_fiscal('abat_spe', period)
+        # caseP = foyer_fiscal('caseP', period)
+        # caseF = foyer_fiscal('caseF', period)
+        # invV, invC = caseP, caseF
+        # naissanceP = foyer_fiscal.declarant_principal('date_naissance', period)
+        # naissanceC = foyer_fiscal.conjoint('date_naissance', period)
+        # dateLimite = datetime64('1931-01-01')
+        # apply_abat_spe = (abat_spe > 0) * (invV + invC + (naissanceP < dateLimite) + (naissanceC < dateLimite))
 
         return (
             + revenu_categoriel_foncier
@@ -881,7 +886,7 @@ class aide_logement_base_revenus_fiscaux(Variable):
             + revenus_capitaux_prelevement_forfaitaire_unique_ir
             + rev_cat_pv
             + plus_values_prelevement_forfaitaire_unique_ir
-            - abat_spe * apply_abat_spe
+            # - abat_spe * apply_abat_spe
             - f7ga
             - f7gb
             - f7gc
@@ -900,9 +905,6 @@ class al_revenu_assimile_salaire_apres_abattements(Variable):
         period_chomage = period.n_2
         period_frais = period.last_year
 
-
-        ass_ou_journaliste = individu('ass_maternel', period.last_month) + individu('ass_familial', period.last_month) + individu('journaliste', period.last_month)
-
         revenu_assimile_salaire = individu('al_revenu_assimile_salaire', period_revenus)
         chomeur_longue_duree = individu('chomeur_longue_duree', period_chomage)
         frais_reels = individu('frais_reels', period_frais)
@@ -911,9 +913,7 @@ class al_revenu_assimile_salaire_apres_abattements(Variable):
         abattement_minimum = where(chomeur_longue_duree, abatpro.min2, abatpro.min)
         abattement_forfaitaire = round_(min_(max_(abatpro.taux * revenu_assimile_salaire, abattement_minimum), abatpro.max))
 
-        return select(
-            [ass_ou_journaliste, frais_reels > 0],
-            [revenu_assimile_salaire, revenu_assimile_salaire - frais_reels],
+        return where(frais_reels > 0, revenu_assimile_salaire - frais_reels,
             max_(0, revenu_assimile_salaire - abattement_forfaitaire)
             )
 
@@ -987,6 +987,17 @@ class aide_logement_base_ressources(Variable):
 
         base_ressources_i = famille.members('al_base_ressources_individu', period)
         base_ressources_parents = famille.sum(base_ressources_i, role=Famille.PARENT)
+
+        demandeur_declarant_principal = famille.demandeur.has_role(FoyerFiscal.DECLARANT_PRINCIPAL)
+        conjoint_declarant_principal = famille.conjoint.has_role(FoyerFiscal.DECLARANT_PRINCIPAL)
+        abat_spe = (
+                famille.demandeur.foyer_fiscal('abat_spe_prestations_familiales', annee_glissante)
+                * demandeur_declarant_principal
+                + famille.conjoint.foyer_fiscal('abat_spe_prestations_familiales', annee_glissante)
+                * conjoint_declarant_principal
+        )
+
+        base_ressources_parents = max_(0, base_ressources_parents - abat_spe)
 
         # Ressources des douze derniers mois
         indemnites_journalieres_i = famille.members('indemnites_journalieres', annee_glissante, options=[ADD])
@@ -1072,7 +1083,6 @@ class aide_logement_base_ressources(Variable):
         abattement_ressources_enfant = parameters(
             period.n_2.stop).prestations.minima_sociaux.aspa.plafond_ressources_seul * 1.25
         base_ressources_enfants = famille.sum(max_(0, base_ressources_i + ressources_annee_glissante_i - abattement_ressources_enfant), role = Famille.ENFANT)
-
         ressources = (
             + base_ressources_parents
             + ressources_annee_glissante
@@ -1084,7 +1094,6 @@ class aide_logement_base_ressources(Variable):
             - f4bb
             - (abattement_chomage_indemnise + abattement_depart_retraite)
             )
-
         # Abattement forfaitaire pour double activité
         abattement_double_activite = biactivite * params_al_ressources.dar_1
 
@@ -1145,7 +1154,6 @@ class aide_logement_base_ressources(Variable):
         eval_forfaitaire &= base_ressources_eval_forfaitaire > 0
         eval_forfaitaire &= aah == 0
         eval_forfaitaire &= not_(neutral_jeune)
-
         ressources = where(eval_forfaitaire, base_ressources_eval_forfaitaire, base_ressources_defaut)
 
         # Planchers de ressources pour étudiants
