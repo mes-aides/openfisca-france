@@ -41,7 +41,7 @@
     foyer_fiscal:
       declarants: parent1
   output:
-    al_revenu_assimile_salaire_apres_abattements: 24000 - (637.5*7)
+    al_revenu_assimile_salaire: (2000*12) - (637.5 * 7)
 
 - name: "Cas 2, abattement assistant maternel"
   period: 2021-01
@@ -86,7 +86,7 @@
     foyer_fiscal:
       declarants: parent1
   output:
-    al_revenu_assimile_salaire_apres_abattements: 24000 - (4 * 1195)
+    al_revenu_assimile_salaire: (2000 * 12) - (1195 * 4)
 
 - name: "Cas 3, abattement assistant familial"
   period: 2021-01
@@ -131,4 +131,4 @@
     foyer_fiscal:
       declarants: parent1
   output:
-    al_revenu_assimile_salaire_apres_abattements: 24000 - ( 1 * 1195)
+    al_revenu_assimile_salaire: (2000 * 12) - (1 * 1195)
