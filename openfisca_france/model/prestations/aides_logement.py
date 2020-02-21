@@ -524,17 +524,62 @@ class al_revenu_assimile_salaire(Variable):
 
     def formula(individu, period, parameters):
         # version spécifique aux aides logement de revenu_assimile_salaire
+        smic_annuel_brut = parameters(period).cotsoc.gen.smic_h_b * 52 * 35 / 12
+
         period_salaire_chomage = period.start.period('year').offset(-1)
         period_f1tt_f3vj = period.n_2
 
-        salaire_imposable = individu('al_abattement_forfaitaire_pour_assistants_et_journalistes', period_salaire_chomage, options=[ADD])
+        salaire_imposable_apres_abattement = individu('al_abattement_forfaitaire_pour_assistants_et_journalistes',
+                                                     period_salaire_chomage, options=[ADD])
+        salaire_imposable_sans_abattement = individu('salaire_imposable', period_salaire_chomage, options=[ADD])
+        frais_reels = individu('frais_reels', period.last_year)
+        salaire_imposable = where(frais_reels > 0, salaire_imposable_sans_abattement, salaire_imposable_apres_abattement)
+
         chomage_imposable = individu('chomage_imposable', period_salaire_chomage, options=[ADD])
         f1tt = individu('f1tt', period_f1tt_f3vj)
         f3vj = individu('f3vj', period_f1tt_f3vj)
         remuneration_apprenti = individu('remuneration_apprenti', period_salaire_chomage, options=[ADD])
+        remuneration_apprenti_apres_abattement = max(0,  (remuneration_apprenti - smic_annuel_brut).all())
         indemnites_stage = individu('indemnites_stage', period_salaire_chomage, options=[ADD])
+        indemnites_stage_ares_abattement = max(0,  (indemnites_stage - smic_annuel_brut).all())
 
-        return salaire_imposable + chomage_imposable + f1tt + f3vj + remuneration_apprenti + indemnites_stage
+        return salaire_imposable + chomage_imposable + f1tt + f3vj + remuneration_apprenti_apres_abattement + indemnites_stage_ares_abattement
+
+
+class al_biactivite(Variable):
+    value_type = bool
+    entity = Famille
+    label = "Indicatrice de biactivité"
+    definition_period = MONTH
+
+    def formula(famille, period, parameters):
+        '''
+        Hypothèses/points à éclaircir :
+           (1) A partir d'une certaine date sont apparemment pris en compte
+               dans les "revenus professinnels" les indemnités journalières.
+               Cf. circulaire interministérielle DSS/2B n°2011-447 du 01/12/2011
+               Regarder davantage ce point
+           (2) On n'a pas pris en compte les abbattements présents dans la
+               variable abattement_salaires_pensions, car il s'agit d'une
+               variable dépendant conjointement des salaires et des pensions
+               (or, les pensions ne doivent pas être pris en compte ici, et
+               cette variable ne peut pas être décomposée entre une part salaire et
+               une part pensions). Mais cette variable n'existe que jusqu'à 2005
+               inclus.
+        '''
+        annee_fiscale_n_1 = period.start.period('year').offset(-1)
+
+        pfam = parameters(annee_fiscale_n_1).prestations.prestations_familiales
+        seuil_rev = 12 * pfam.af.bmaf
+
+        condition_ressource = (
+                famille.members('rpns_individu', annee_fiscale_n_1)
+                + famille.members('revenu_assimile_salaire_apres_abattements', annee_fiscale_n_1)
+                >= seuil_rev
+        )
+        deux_parents = famille.nb_persons(role=Famille.PARENT) == 2
+
+        return deux_parents * famille.all(condition_ressource, role=Famille.PARENT)
 
 
 class al_abattement_forfaitaire_pour_assistants_et_journalistes(Variable):
@@ -958,8 +1003,9 @@ class aide_logement_base_ressources(Variable):
     definition_period = MONTH
 
     def formula_2020_12_01(famille, period, parameters):
-        biactivite = famille('biactivite', period)
+        biactivite = famille('al_biactivite', period)
         params_al_ressources = parameters(period).prestations.aides_logement.ressources
+        age_etudiant_max = parameters(period).prestations.aides_logement.age_max_etudiant
 
         # Rolling year
         annee_glissante = period.start.period('year').offset(-1)
@@ -1080,7 +1126,7 @@ class aide_logement_base_ressources(Variable):
 
         # Planchers de ressources pour étudiants
         # Seul le statut étudiant (et boursier) du demandeur importe, pas celui du conjoint
-        demandeur_etudiant = famille.demandeur('etudiant', period)
+        demandeur_etudiant = famille.demandeur('etudiant', period) * ( famille.demandeur('age', period) < age_etudiant_max)
         demandeur_boursier = famille.demandeur('boursier', period)
         statut_occupation_logement = famille.demandeur.menage('statut_occupation_logement', period)
         logement_crous = famille.demandeur.menage('logement_crous', period)
@@ -1088,7 +1134,7 @@ class aide_logement_base_ressources(Variable):
         montant_plancher_ressources = not_(logement_crous_ou_foyer) * max_(0, demandeur_etudiant * params_al_ressources.dar_4 - demandeur_boursier * params_al_ressources.dar_5)
         montant_plancher_ressources_logement_foyer = logement_crous_ou_foyer * max_(0, demandeur_etudiant * params_al_ressources.dar_11 - demandeur_boursier * params_al_ressources.dar_12)
 
-        ressources = max_(ressources, max_(montant_plancher_ressources, montant_plancher_ressources_logement_foyer))
+        ressources = where(demandeur_etudiant, max_(montant_plancher_ressources, montant_plancher_ressources_logement_foyer), ressources)
 
         # Arrondi au centime, pour éviter qu'une petite imprécision liée à la recombinaison d'une valeur annuelle éclatée ne fasse monter d'un cran l'arrondi au 100€ supérieur.
 
