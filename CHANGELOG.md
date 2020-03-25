@@ -1,5 +1,12 @@
 # Changelog
 
+## 48.11.0 [#1423](https://github.com/openfisca/openfisca-france/pull/1423)
+
+* Évolution du système socio-fiscal.
+* Zones impactées : `model/covid19`.
+* Détails :
+  - Ajoute un premier calcul de l'aide exceptionnelle pour les TPE
+
 ### 48.10.6 [#1420](https://github.com/openfisca/openfisca-france/pull/1420)
 
 * Évolution du système socio-fiscal. 
