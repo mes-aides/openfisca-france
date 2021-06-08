@@ -30,6 +30,13 @@ class aah_date_debut_hospitalisation(Variable):
     definition_period = MONTH
 
 
+class aah_abattement_forfaitaire_amendement(Variable):
+    value_type = float
+    label = ""
+    entity = Famille
+    definition_period = MONTH
+
+
 class aah_base_ressources(Variable):
     value_type = float
     label = "Base ressources de l'allocation adulte handicapé"
@@ -40,9 +47,10 @@ class aah_base_ressources(Variable):
         law = parameters(period)
 
         en_activite = individu('salaire_imposable', period) > 0
+        abat = individu.famille('aah_abattement_forfaitaire_amendement', period)
 
         def assiette_conjoint(revenus_conjoint):
-            return 0.9 * (1 - 0.2) * revenus_conjoint
+            return 0.9 * (1 - 0.2) * revenus_conjoint * (abat == 0) + (abat != 0) * max_(0, revenus_conjoint - abat)
 
         def assiette_revenu_activite_demandeur(revenus_demandeur):
             smic_brut_annuel = 12 * law.cotsoc.gen.smic_h_b * law.cotsoc.gen.nb_heure_travail_mensuel
